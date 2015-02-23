@@ -6,8 +6,9 @@ class RelBox(object):
     def __init__(self, num_words, num_rels, vocab_embed_size, lr=0.01, tensor_activation=T.tanh, num_noise_samples=1, init_dense_vocab=None):
         numpy_rng = numpy.random.RandomState(89677)
         theano_rng = RandomStreams(12783)
-        rng_box_low = -4 * numpy.sqrt(6. / (vocab_embed_size + vocab_embed_size + num_rels))
-        rng_box_high = 4 * numpy.sqrt(6. / (vocab_embed_size + vocab_embed_size + num_rels))
+        rng_box_limit = 4 * numpy.sqrt(6. / (vocab_embed_size + vocab_embed_size + num_rels))
+        rng_box_low = 0
+        rng_box_high = rng_box_limit
         init_box = numpy.asarray(numpy_rng.uniform(low=rng_box_low, high=rng_box_high, size=(vocab_embed_size, vocab_embed_size, num_rels)))
         rng_proj_low = -4 * numpy.sqrt(6. / (num_words + vocab_embed_size))
         rng_proj_high = 4 * numpy.sqrt(6. / (num_words + vocab_embed_size))
@@ -57,11 +58,11 @@ class RelBox(object):
         rand_score = T.dot(rand_y, T.dot(T.tensordot(rand_x_rep, T.tensordot(rand_r, self.B, axes=(0,2)), axes=(0,0)), self.P_hat).T)
         for _ in range(num_noise_samples):
             rand_margin_score += rand_score
-            noise_log_likelihood += T.log(noise_prob/(rand_score + noise_prob))
+            noise_log_likelihood += T.log(noise_prob/(T.abs_(rand_score) + noise_prob))
         self.nce_margin_loss = T.maximum(0, 1 - self.score + rand_margin_score)
         
         # NCE negative log likelihood:-1 * {log(score/(score + num_noise_samples*noise_prob)) + \sum_{i=1}^k (log(noise_prob/(rand_score + noise_prob)))}
-        self.nce_prob_loss = -(T.log(self.score/(self.score + noise_prob)) + noise_log_likelihood)
+        self.nce_prob_loss = -(T.log(T.abs_(self.score)/(T.abs_(self.score) + noise_prob)) + noise_log_likelihood)
         self.cost_inputs = [self.x_ind, self.y_ind, self.r_ind]
         self.params = [self.B, self.P, self.P_hat]
 
